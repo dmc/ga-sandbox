@@ -5,6 +5,7 @@ on:
   push:
     branches: [ main ]
     paths-ignore:
+      - '.github/**'
       - '**.md'
       - 'docs/**'
   pull_request:
@@ -14,10 +15,10 @@ jobs:
   # 基本的なビルドとテスト
   basic-build:
     name: Basic Build
-    uses: ./.github/workflows/common.yml
+    uses: ./.github/workflows/java-shared-lib.yml
     with:
       java-version: '17'
-      build-tool: 'maven'
+      build-tool: 'gralde'
       run-tests: true
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -31,7 +32,7 @@ jobs:
     uses: ./.github/workflows/common.yml
     with:
       java-version: ${{ matrix.java }}
-      build-tool: 'maven'
+      build-tool: 'gralde'
       run-tests: true
       coverage-report: ${{ matrix.java == '17' }}
     secrets:
@@ -41,16 +42,17 @@ jobs:
 name: Nightly Build
 
 on:
-  schedule:
-    - cron: '0 0 * * *'
+  workflow_dispatch:
+  # schedule:
+  #   - cron: '0 0 * * *'
 
 jobs:
   nightly-build:
     name: Nightly Build and Analysis
-    uses: ./.github/workflows/common.yml
+    uses: ./.github/workflows/java-shared-lib.yml
     with:
       java-version: '17'
-      build-tool: 'maven'
+      build-tool: 'gradle'
       run-tests: true
       coverage-report: true
     secrets:
@@ -66,10 +68,10 @@ on:
 jobs:
   release-build:
     name: Release Build
-    uses: ./.github/workflows/common.yml
+    uses: ./.github/workflows/java-shared-lib.yml
     with:
       java-version: '17'
-      build-tool: 'maven'
+      build-tool: 'gradle'
       run-tests: true
       coverage-report: true
     secrets:

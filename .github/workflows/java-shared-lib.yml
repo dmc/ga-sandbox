@@ -1,0 +1,121 @@
+# .github/workflows/common.yml
+name: Common Reusable Workflow
+
+# reusableワークフローであることを宣言
+on:
+  workflow_call:
+    inputs:
+      java-version:
+        description: 'Java version to use'
+        required: false
+        default: '17'
+        type: string
+      java-distribution:
+        description: 'Java distribution to use'
+        required: false
+        default: 'temurin'
+        type: string
+      build-tool:
+        description: 'Build tool (maven/gradle)'
+        required: false
+        default: 'maven'
+        type: string
+      run-tests:
+        description: 'Whether to run tests'
+        required: false
+        default: true
+        type: boolean
+      coverage-report:
+        description: 'Generate coverage report'
+        required: false
+        default: false
+        type: boolean
+    # 呼び出し元から渡されるシークレット
+    secrets:
+      SONAR_TOKEN:
+        required: false
+
+jobs:
+  setup-and-build:
+    name: Setup and Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ inputs.java-version }}
+          distribution: ${{ inputs.java-distribution }}
+          cache: ${{ inputs.build-tool }}
+
+      - name: Build Info
+        id: build-info
+        run: |
+          echo "java_version=$(java -version 2>&1 | head -n 1)" >> $GITHUB_OUTPUT
+          echo "os_info=$(uname -a)" >> $GITHUB_OUTPUT
+    
+    outputs:
+      java_version: ${{ steps.build-info.outputs.java_version }}
+      os_info: ${{ steps.build-info.outputs.os_info }}
+
+  test:
+    needs: setup-and-build
+    if: inputs.run-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ inputs.java-version }}
+          distribution: ${{ inputs.java-distribution }}
+          cache: ${{ inputs.build-tool }}
+      
+      - name: Run Tests with Maven
+        if: inputs.build-tool == 'maven'
+        run: mvn -B test
+      
+      - name: Run Tests with Gradle
+        if: inputs.build-tool == 'gradle'
+        run: ./gradlew test
+      
+      - name: Generate Coverage Report
+        if: inputs.coverage-report
+        run: |
+          if [ "${{ inputs.build-tool }}" = "maven" ]; then
+            mvn jacoco:report
+          else
+            ./gradlew jacocoTestReport
+          fi
+      
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            **/target/surefire-reports
+            **/build/test-results
+          retention-days: 5
+
+  quality-check:
+    needs: [setup-and-build, test]
+    if: inputs.coverage-report && secrets.SONAR_TOKEN != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: SonarQube Analysis
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          if [ "${{ inputs.build-tool }}" = "maven" ]; then
+            mvn sonar:sonar
+          else
+            ./gradlew sonarqube
+          fi

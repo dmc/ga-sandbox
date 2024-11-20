@@ -1,6 +1,5 @@
-# .github/workflows/template.yml
-
 name: Java Gradle CI Template
+
 on:
   push:
     branches: [ main ]
@@ -56,7 +55,7 @@ jobs:
             experimental: true
             additional-tests: true
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 4
     
     steps:
       - name: Debug Information
@@ -67,6 +66,9 @@ jobs:
           echo "Branch: ${{ github.ref }}"
           echo "Workflow: ${{ github.workflow }}"
           echo "Repository: ${{ github.repository }}"
+          # 環境変数の一覧を表示
+          echo "📝 環境変数:"
+          env | sort
       
       - uses: actions/checkout@v4
       
@@ -78,17 +80,12 @@ jobs:
       
       # Gradleのセットアップ（公式アクション使用）
       - name: Setup Gradle
-        uses: gradle/gradle-build-action@v2
-        with:
-          gradle-version: wrapper
-          cache-read-only: false
-          cache-overwrite-existing: true
-          gradle-home-cache-cleanup: true
-      
+        uses: gradle/actions/setup-gradle@v3
+        
       # Gradleビルドの実行
       - name: Build with Gradle
+        if: matrix.os == 'ubuntu-latest'
         run: |
-          if: matrix.os == 'ubuntu-latest'
           chmod +x gradlew
           ./gradlew build --scan --no-daemon
       
@@ -112,17 +109,18 @@ jobs:
       - name: Run Tests Windows
         if: matrix.os == 'windows-latest'
         run: |
-          gradlew.bat test
+          gradlew.bat clean build
+        shell: cmd
         
-      # テストレポートの保存
-      - name: Store Test Results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results-${{ matrix.java }}-${{ matrix.os }}
-          path: |
-            build/reports/tests/
-          retention-days: 5
+      # # テストレポートの保存
+      # - name: Store Test Results
+      #   if: always()
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: test-results-${{ matrix.java }}-${{ matrix.os }}
+      #     path: |
+      #       build/reports/tests/
+      #     retention-days: 5
       
 
   quality-check:
@@ -138,25 +136,22 @@ jobs:
           distribution: 'temurin'
       
       - name: Setup Gradle
-        uses: gradle/gradle-build-action@v2
+        uses: gradle/actions/setup-gradle@v3
       
       # 品質チェックツールの実行
       - name: Run Quality Checks
         run: |
-          ./gradlew check \
-            spotbugsMain spotbugsTest \
-            checkstyleMain checkstyleTest 
-
+          ./gradlew test pmdMain checkstyleMain spotBugsMain
       # SonarQubeスキャン（オプション）
-      - name: SonarQube Analysis
-        if: github.event_name != 'pull_request'
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: |
-          ./gradlew sonar \
-            -Dsonar.projectKey=${{ github.repository }} \
-            -Dsonar.organization=your-org \
-            -Dsonar.host.url=https://sonarcloud.io
+      # - name: SonarQube Analysis
+      #   if: github.event_name != 'pull_request'
+      #   env:
+      #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      #   run: |
+      #     ./gradlew sonar \
+      #       -Dsonar.projectKey=${{ github.repository }} \
+      #       -Dsonar.organization=your-org \
+      #       -Dsonar.host.url=https://sonarcloud.io
       
       # 品質チェックレポートの保存
       - name: Store Quality Reports
@@ -168,6 +163,10 @@ jobs:
             build/reports/spotbugs/
             build/reports/checkstyle/
             build/reports/pmd/
+            build/reports/tests/test/
+            build/reports/jacoco/test/html/
+
+            
           retention-days: 5
 
 # ヘルプフルコメント
