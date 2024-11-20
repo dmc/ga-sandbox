@@ -1,0 +1,76 @@
+# .github/workflows/build.yml
+name: Build and Test
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # 基本的なビルドとテスト
+  basic-build:
+    name: Basic Build
+    uses: ./.github/workflows/common.yml
+    with:
+      java-version: '17'
+      build-tool: 'maven'
+      run-tests: true
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  # マトリックステスト
+  matrix-test:
+    strategy:
+      matrix:
+        java: ['17', '21']
+    name: Java ${{ matrix.java }} Test
+    uses: ./.github/workflows/common.yml
+    with:
+      java-version: ${{ matrix.java }}
+      build-tool: 'maven'
+      run-tests: true
+      coverage-report: ${{ matrix.java == '17' }}
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+# .github/workflows/nightly.yml
+name: Nightly Build
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+
+jobs:
+  nightly-build:
+    name: Nightly Build and Analysis
+    uses: ./.github/workflows/common.yml
+    with:
+      java-version: '17'
+      build-tool: 'maven'
+      run-tests: true
+      coverage-report: true
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+# .github/workflows/release.yml
+name: Release Build
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  release-build:
+    name: Release Build
+    uses: ./.github/workflows/common.yml
+    with:
+      java-version: '17'
+      build-tool: 'maven'
+      run-tests: true
+      coverage-report: true
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

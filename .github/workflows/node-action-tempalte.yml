@@ -1,0 +1,156 @@
+# .github/workflows/template.yml
+
+# 複数のトリガーを定義
+# コメントアウトを解除して使用するトリガーを選択可能
+name: GitHub Actions Template
+on:
+  # プッシュ時の実行設定
+  push:
+    branches: [ main ]
+    # 特定のブランチパターンを指定可能
+    # branches: [ 'feature/**', 'releases/**' ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  
+  # プルリクエスト時の実行設定
+  # pull_request:
+  #   branches: [ main ]
+  #   types: [opened, synchronize, reopened]
+  
+  # 手動実行用トリガー
+  # workflow_dispatch:
+  #   inputs:
+  #     environment:
+  #       description: 'Environment to run tests against'
+  #       type: choice
+  #       options: 
+  #         - dev
+  #         - staging
+  #         - prod
+  #       required: true
+  
+  # スケジュール実行
+  # schedule:
+  #   - cron: '0 0 * * *'  # 毎日午前0時に実行
+
+# 環境変数のグローバル設定
+env:
+  DEFAULT_NODE_VERSION: '18'
+  DEFAULT_PYTHON_VERSION: '3.11'
+
+# 同時実行の制御
+# 詳細: https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#concurrency
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # 基本的な単一ジョブの例
+  basic-job:
+    name: Basic Job Example
+    runs-on: ubuntu-latest
+    
+    # 環境変数（ジョブレベル）
+    env:
+      JOB_SPECIFIC_VAR: "value"
+    
+    # タイムアウト設定
+    timeout-minutes: 10
+    
+    steps:
+      # デバッグ用の情報出力
+      - name: Debug Information
+        run: |
+          echo "🔍 デバッグ情報:"
+          echo "Branch: ${{ github.ref }}"
+          echo "Event: ${{ github.event_name }}"
+          echo "Workspace: ${{ github.workspace }}"
+          echo "Repository: ${{ github.repository }}"
+          # 環境変数の一覧を表示
+          echo "📝 環境変数:"
+          env | sort
+      
+      # リポジトリのチェックアウト
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 全履歴を取得（必要な場合）
+      
+      # Node.jsのセットアップ例
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.DEFAULT_NODE_VERSION }}
+          cache: 'npm'  # キャッシュの利用
+      
+      # 条件付きステップの例
+      - name: Conditional Step
+        if: github.event_name == 'push'
+        run: echo "This step runs only on push events"
+
+  # マトリックスジョブの例
+  matrix-job:
+    name: Matrix Job Example
+    needs: basic-job  # 依存関係の定義
+    runs-on: ${{ matrix.os }}
+    
+    # マトリックス戦略の定義
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [16, 18]
+        include:
+          - os: ubuntu-latest
+            node: 18
+            npm-flags: '--production'
+      # 失敗時の動作設定
+      fail-fast: false
+      max-parallel: 2
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      # マトリックス変数の使用例
+      - name: Show Matrix Info
+        run: |
+          echo "OS: ${{ matrix.os }}"
+          echo "Node: ${{ matrix.node }}"
+          echo "NPM Flags: ${{ matrix.npm-flags }}"
+
+  # アーティファクトの処理例
+  artifact-job:
+    name: Artifact Handling Example
+    needs: [basic-job, matrix-job]
+    runs-on: ubuntu-latest
+    
+    steps:
+      # アーティファクトの作成
+      - name: Create artifact
+        run: |
+          mkdir -p artifacts
+          echo "Build timestamp: $(date)" > artifacts/build-info.txt
+      
+      # アーティファクトのアップロード
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: artifacts/
+          retention-days: 5
+
+# ヘルプフルコメント
+# 
+# デバッグに役立つ環境変数:
+# - GITHUB_WORKSPACE: ワークフローのワークスペースパス
+# - GITHUB_ENV: 環境ファイルのパス
+# - GITHUB_PATH: PATHファイルのパス
+# - GITHUB_STEP_SUMMARY: ステップサマリーファイルのパス
+# 
+# デバッグモードの有効化:
+# - リポジトリのSecretsに ACTIONS_STEP_DEBUG = true を設定
+# - または、ワークフローの実行時に Enable debug logging を選択
+# 
+# 便利なドキュメントリンク:
+# - ワークフロー構文: https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions
+# - コンテキスト: https://docs.github.com/en/actions/learn-github-actions/contexts
+# - 式: https://docs.github.com/en/actions/learn-github-actions/expressions
+# - 環境変数: https://docs.github.com/en/actions/learn-github-actions/environment-variables

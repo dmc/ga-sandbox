@@ -1,0 +1,208 @@
+# .github/workflows/template.yml
+
+name: Java Gradle CI Template
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/**'
+      - 'gradle/**'
+  
+  # プルリクエスト時の実行設定
+  # pull_request:
+  #   branches: [ main ]
+  #   types: [opened, synchronize, reopened]
+  
+  workflow_dispatch:
+    # inputs:
+    #   test_type:
+    #     description: 'テストタイプを選択'
+    #     required: true
+    #     default: 'unit'
+    #     type: choice
+    #     options:
+    #       - unit
+    #       - integration
+    #       - all
+
+env:
+  # Gradleのパフォーマンス最適化
+  GRADLE_OPTS: >-
+    -Dorg.gradle.daemon=false
+    -Dorg.gradle.parallel=true
+    -Dorg.gradle.workers.max=2
+    -Dorg.gradle.jvmargs="-Xmx6g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8"
+  # キャッシュ設定
+  GRADLE_BUILD_ACTION_CACHE_DEBUG_ENABLED: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Java ${{ matrix.java }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      matrix:
+        java: [17, 21]
+        os: [ubuntu-latest, windows-latest]
+        include:
+          - java: 21
+            os: ubuntu-latest
+            experimental: true
+            additional-tests: true
+      fail-fast: false
+      max-parallel: 2
+    
+    steps:
+      - name: Debug Information
+        run: |
+          echo "🔍 実行環境情報:"
+          echo "Java: ${{ matrix.java }}"
+          echo "OS: ${{ matrix.os }}"
+          echo "Branch: ${{ github.ref }}"
+          echo "Workflow: ${{ github.workflow }}"
+          echo "Repository: ${{ github.repository }}"
+      
+      - uses: actions/checkout@v4
+      
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ matrix.java }}
+          distribution: 'temurin'
+      
+      # Gradleのセットアップ（公式アクション使用）
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@v2
+        with:
+          gradle-version: wrapper
+          cache-read-only: false
+          cache-overwrite-existing: true
+          gradle-home-cache-cleanup: true
+      
+      # Gradleビルドの実行
+      - name: Build with Gradle
+        run: |
+          if: matrix.os == 'ubuntu-latest'
+          chmod +x gradlew
+          ./gradlew build --scan --no-daemon
+      
+      # テスト実行
+      - name: Run Tests Linux
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          ./gradlew test
+          # case "${{ github.event.inputs.test_type }}" in
+          #   "unit")
+          #     ./gradlew test
+          #     ;;
+          #   "integration")
+          #     ./gradlew integrationTest
+          #     ;;
+          #   "all")
+          #     ./gradlew test integrationTest
+          #     ;;
+          # esac
+      
+      - name: Run Tests Windows
+        if: matrix.os == 'windows-latest'
+        run: |
+          gradlew.bat test
+        
+      # テストレポートの保存
+      - name: Store Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.java }}-${{ matrix.os }}
+          path: |
+            build/reports/tests/
+          retention-days: 5
+      
+
+  quality-check:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+      
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@v2
+      
+      # 品質チェックツールの実行
+      - name: Run Quality Checks
+        run: |
+          ./gradlew check \
+            spotbugsMain spotbugsTest \
+            checkstyleMain checkstyleTest 
+
+      # SonarQubeスキャン（オプション）
+      - name: SonarQube Analysis
+        if: github.event_name != 'pull_request'
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          ./gradlew sonar \
+            -Dsonar.projectKey=${{ github.repository }} \
+            -Dsonar.organization=your-org \
+            -Dsonar.host.url=https://sonarcloud.io
+      
+      # 品質チェックレポートの保存
+      - name: Store Quality Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-reports
+          path: |
+            build/reports/spotbugs/
+            build/reports/checkstyle/
+            build/reports/pmd/
+          retention-days: 5
+
+# ヘルプフルコメント
+# 
+# Gradle関連の便利な設定:
+# 1. build.gradle.kts での推奨設定
+#    ```kotlin
+#    tasks.withType<Test> {
+#        useJUnitPlatform()
+#        maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).takeIf { it > 0 } ?: 1
+#        reports {
+#            html.required.set(true)
+#            junitXml.required.set(true)
+#        }
+#    }
+#    ```
+# 
+# 2. gradle.properties の推奨設定
+#    org.gradle.parallel=true
+#    org.gradle.caching=true
+#    org.gradle.configuration-cache=true
+# 
+# デバッグTips:
+# - ./gradlew --scan: ビルドスキャンを有効化
+# - ./gradlew --debug: デバッグログを有効化
+# - ./gradlew tasks: 利用可能なタスク一覧を表示
+# 
+# 一般的なトラブルシューティング:
+# 1. ビルドキャッシュの問題 → ./gradlew clean --refresh-dependencies
+# 2. パーミッション問題 → chmod +x gradlew
+# 3. メモリ不足 → GRADLE_OPTS で JVM オプションを調整
+# 
+# 便利なGradle Plugins:
+# - id("org.springframework.boot"): Springアプリケーション用
+# - id("io.spring.dependency-management"): 依存関係管理
+# - id("org.jetbrains.kotlin.jvm"): Kotlin用
+# - id("com.diffplug.spotless"): コードフォーマット
+# - id("org.sonarqube"): SonarQube解析用
