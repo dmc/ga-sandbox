@@ -1,0 +1,52 @@
+name: Parallel build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  strategy:
+    fail-fast: false
+    max-parallel: 2
+
+  build:
+    name: build
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: show build env
+        run: |
+          env | sort
+      
+      - uses: actions/checkout@v4
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: 'temurin'
+      
+  quality-check:
+    runs-on: 'ubuntu-latest'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: 'temurin'
+      
+      # 品質チェックツールの実行
+      - name: Run Quality Checks
+        run: |
+          ./gradlew test pmdMain checkstyleMain spotBugsMain
+      
+      # 品質チェックレポートの保存
+      - name: Store Quality Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-reports
+          path: |
+            build/reports/spotbugs/
+            build/reports/checkstyle/
+            build/reports/pmd/
+            build/reports/tests/test/
+            build/reports/jacoco/test/html/
+          retention-days: 5

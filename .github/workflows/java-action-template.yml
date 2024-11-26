@@ -1,13 +1,13 @@
 name: Java Gradle CI Template
 
 on:
-  push:
-    branches: [ main ]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '.github/**'
-      - 'gradle/**'
+  # push:
+  #   branches: [ main ]
+  #   paths-ignore:
+  #     - '**.md'
+  #     - 'docs/**'
+  #     - '.github/**'
+  #     - 'gradle/**'
   
   # プルリクエスト時の実行設定
   # pull_request:
