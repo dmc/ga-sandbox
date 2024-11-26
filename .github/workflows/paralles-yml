@@ -4,13 +4,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  strategy:
-    fail-fast: false
-    max-parallel: 2
-
   build:
     name: build
-    runs-on: "ubuntu-latest"
+    runs-on: ubuntu-latest
     steps:
       - name: show build env
         run: |
@@ -24,7 +20,7 @@ jobs:
           distribution: 'temurin'
       
   quality-check:
-    runs-on: 'ubuntu-latest'
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Setup Java
