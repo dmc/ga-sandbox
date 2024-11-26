@@ -35,8 +35,8 @@ jobs:
             - name: gradle build
               id: gradle_build
               run: |
-                ./gradlew build -i -s -x test --profile
-
+                ./gradlew goJF
+                
     slack-workflow-status:
         runs-on: ubuntu-latest
         needs: [build]
