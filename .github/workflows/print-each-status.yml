@@ -32,11 +32,15 @@ jobs:
                 java-version: '17'
                 distribution: 'temurin'
 
+            - name: Setup Gradle
+              uses: gradle/actions/setup-gradle@v3
+
             - name: gradle build
               id: gradle_build
+              continue-on-error: true
               run: |
                 ./gradlew goJF
-                
+
     slack-workflow-status:
         runs-on: ubuntu-latest
         needs: [build]
