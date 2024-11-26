@@ -37,7 +37,7 @@ jobs:
 
             - name: gradle build
               id: gradle_build
-              continue-on-error: true
+            #   continue-on-error: true
               run: |
                 ./gradlew goJF
 
