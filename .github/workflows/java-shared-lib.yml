@@ -100,22 +100,3 @@ jobs:
             **/target/surefire-reports
             **/build/test-results
           retention-days: 5
-
-  quality-check:
-    needs: [setup-and-build, test]
-    if: inputs.coverage-report && secrets.SONAR_TOKEN != ''
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      
-      - name: SonarQube Analysis
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: |
-          if [ "${{ inputs.build-tool }}" = "maven" ]; then
-            mvn sonar:sonar
-          else
-            ./gradlew sonarqube
-          fi

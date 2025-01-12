@@ -1,0 +1,25 @@
+name: invalid
+
+runs:
+  using: composite
+  steps:
+    - name: invalid
+      continue-on-error: true
+      id: invalid
+      shell: bash
+      run: 'ls a'
+
+    - name: safe
+      id: safe
+      shell: bash
+      run: 'ls -a'
+
+    - name: post
+      id: post
+      if: always()
+      env: 
+        stepsJson: ${{ toJson(steps) }}
+      shell: bash
+      run: |
+        echo $stepsJson
+        exit 1
