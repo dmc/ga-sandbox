@@ -1,0 +1,182 @@
+name: Cache Test Workflow
+
+on:
+  workflow_dispatch: 
+  
+jobs:
+  cache-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Display workflow information
+        run: |
+          echo "==================================="
+          echo "Cache Test Workflow"
+          echo "==================================="
+          echo "Runner: $(hostname)"
+          echo "Workspace: $GITHUB_WORKSPACE"
+          echo "Run ID: ${{ github.run_id }}"
+          echo "Run Number: ${{ github.run_number }}"
+          echo "==================================="
+      
+      # ========================================
+      # テストビルド成果物のキャッシュ
+      # ========================================
+      - name: Create test files for cache
+        run: |
+          echo "Creating test files for cache..."
+          
+          TEST_DIR="${GITHUB_WORKSPACE}/cache-test-data"
+          mkdir -p "$TEST_DIR"
+          
+          # 1MB のテストファイルを10個作成（合計10MB）
+          for i in {1..10}; do
+            FILE_NAME="${TEST_DIR}/test-file-${i}.bin"
+            dd if=/dev/urandom of="$FILE_NAME" bs=1M count=1 2>/dev/null
+            echo "Created: test-file-${i}.bin (1 MB)"
+          done
+          
+          # ファイル一覧と合計サイズ
+          FILE_COUNT=$(ls -1 "$TEST_DIR" | wc -l)
+          TOTAL_SIZE=$(du -sh "$TEST_DIR" | cut -f1)
+          
+          echo ""
+          echo "Total files: $FILE_COUNT"
+          echo "Total size: $TOTAL_SIZE"
+      
+      - name: Cache test data
+        id: cache-test-data
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/cache-test-data
+          key: test-data-
+          restore-keys: |
+            test-data-
+      
+      - name: Check test data cache status
+        run: |
+          echo "Test Data Cache Hit: ${{ steps.cache-test-data.outputs.cache-hit }}"
+          
+          TEST_DIR="${GITHUB_WORKSPACE}/cache-test-data"
+          if [ -d "$TEST_DIR" ]; then
+            FILE_COUNT=$(find "$TEST_DIR" -type f | wc -l)
+            TOTAL_SIZE=$(du -sh "$TEST_DIR" | cut -f1)
+            
+            echo "Files in cache directory: $FILE_COUNT"
+            echo "Total size: $TOTAL_SIZE"
+          fi
+      
+      # ========================================
+      # 複数パスのキャッシュ（大容量テスト）
+      # ========================================
+      - name: Create large test data
+        run: |
+          echo "Creating large test data for cache..."
+          
+          # 複数のディレクトリに大きなファイルを作成
+          for i in {1..3}; do
+            DIR="${GITHUB_WORKSPACE}/large-cache-${i}"
+            mkdir -p "$DIR"
+            
+            # 各ディレクトリに50MBのファイルを作成
+            FILE_NAME="${DIR}/large-file.bin"
+            dd if=/dev/urandom of="$FILE_NAME" bs=1M count=50 2>/dev/null
+            
+            echo "Created: ${FILE_NAME} (50 MB)"
+          done
+          
+          echo "Total large cache data: 150 MB"
+      
+      - name: Cache large test data
+        id: cache-large-data
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ github.workspace }}/large-cache-1
+            ${{ github.workspace }}/large-cache-2
+            ${{ github.workspace }}/large-cache-3
+          key: large-data-
+          restore-keys: |
+            large-data-
+      
+      - name: Check large data cache status
+        run: |
+          echo "Large Data Cache Hit: ${{ steps.cache-large-data.outputs.cache-hit }}"
+      
+      # ========================================
+      # キャッシュサマリー
+      # ========================================
+      - name: Cache Summary
+        env:
+          GH_TOKEN: ${{ secrets.ACTION_GITHUB_TOKEN }}
+        if: always()
+        run: |
+          echo "==========================================="
+          echo "Cache Summary"
+          echo "==========================================="
+          echo ""
+          echo "Cache Status:"
+          echo "  Test Data:  ${{ steps.cache-test-data.outputs.cache-hit }}"
+          echo "  Large Data: ${{ steps.cache-large-data.outputs.cache-hit }}"
+          echo ""
+          echo "==========================================="
+          
+          # GitHub Job Summaryに結果を追加
+          {
+            echo "## Cache Test Results"
+            echo ""
+            echo "**Run ID:** ${{ github.run_id }}"
+            echo "**Run Number:** ${{ github.run_number }}"
+            echo "**Runner:** ubuntu-latest"
+            echo ""
+            echo "### Cache Status"
+            echo ""
+            echo "| Cache Type | Status |"
+            echo "|------------|--------|"
+          } >> $GITHUB_STEP_SUMMARY
+          
+          # アイコン設定
+          if [ "${{ steps.cache-test-data.outputs.cache-hit }}" = "true" ]; then
+            TEST_STATUS="✅ Hit"
+          else
+            TEST_STATUS="⚠️ Miss"
+          fi
+          
+          if [ "${{ steps.cache-large-data.outputs.cache-hit }}" = "true" ]; then
+            LARGE_STATUS="✅ Hit"
+          else
+            LARGE_STATUS="⚠️ Miss"
+          fi
+          
+          {
+            echo "| Test Data (10 MB) | $TEST_STATUS |"
+            echo "| Large Data (150 MB) | $LARGE_STATUS |"
+            echo ""
+            echo "### Estimated Cache Size"
+            echo ""
+            echo "- Test Data: 10 MB"
+            echo "- Large Data: 150 MB"
+            echo "- **Total**: ~160 MB"
+            echo ""
+            echo "### Billing Information"
+            echo ""
+            echo "Check cache storage usage at:"
+            echo "**Settings > Billing and plans > Plans and usage > Actions**"
+            echo ""
+            echo "### Expected Monthly Cost"
+            echo ""
+            echo "For 160 MB cached for 30 days:"
+            echo "- Storage: 0.16 GB × 30 days = 4.8 GB-days"
+            echo "- Monthly: 4.8 GB-days ÷ 30 days = 0.16 GB-Months"
+            echo "- **Cost: ~\$0.04/month** (at \$0.25/GB/month)"
+          } >> $GITHUB_STEP_SUMMARY
+
+          echo "### Result" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`json" >> $GITHUB_STEP_SUMMARY
+          gh api repos/${{ github.repository }}/actions/caches |jq >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`"
+          
+        
+      

@@ -1,0 +1,9 @@
+name: hello
+
+runs:
+  using: composite
+  steps:
+    - name: hello
+      id: hello
+      shell: bash
+      run: 'echo hello world'
