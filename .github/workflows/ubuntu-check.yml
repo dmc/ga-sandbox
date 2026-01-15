@@ -1,0 +1,78 @@
+name: ubuntu
+
+on:
+  workflow_dispatch:
+    inputs:
+      name:
+        default: 'hello'
+
+jobs:
+  check:
+    timeout-minutes: 7200
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: checkout
+      uses: actions/checkout@v4
+
+    - name: create github.json
+      env:
+        githubJson : ${{ toJson(github) }}
+      run: |
+        mkdir sample
+        cd sample
+        echo $githubJson |jq . > github.json
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: sample-${{ github.run_id }}
+        path: sample
+
+    - name: create git.json
+      env:
+        githubJson : ${{ toJson(github) }}
+      run: |
+        echo $githubJson |jq . > git.json
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: ${{ github.run_id }}
+        path: ./*.json
+        overwrite: true
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: ${{ github.run_id }}-github.json
+        path: ./*.json
+
+    - name: clear
+      run: |
+        rm -fr ./*
+
+    - uses: actions/download-artifact@v4
+      with:
+        name: sample-${{ github.run_id }}
+        path: .
+
+    - uses: actions/download-artifact@v4
+      with:
+        name: ${{ github.run_id }}
+        path: .download-json
+
+    - name: check
+      if: always()
+      id: check
+      env:
+        GH_TOKEN: ${{ secrets.ACTION_GITHUB_TOKEN }}
+        stepsJson: ${{ toJson(steps) }}
+      run: |
+        ls -lR
+
+        ARTIFACT_IDS=$(gh api repos/${{ github.repository }}/actions/artifacts --jq ".artifacts[] | select(.workflow_run.id == ${{ github.run_id }}) | .id")
+        
+        for ID in $ARTIFACT_IDS; do
+          if [ -n "$ID" ]; then
+            echo "Deleting artifact ID: $ID"
+            gh api repos/${{ github.repository }}/actions/artifacts/$ID -X DELETE
+          fi
+        done
