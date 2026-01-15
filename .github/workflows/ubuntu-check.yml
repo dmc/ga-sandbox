@@ -52,11 +52,11 @@ jobs:
     - uses: actions/download-artifact@v4
       with:
         name: sample-${{ github.run_id }}
-        path: .
+        path: sample
 
     - uses: actions/download-artifact@v4
       with:
-        name: ${{ github.run_id }}
+        name: ${{ github.run_id }}-github.json
         path: .download-json
 
     - name: check
