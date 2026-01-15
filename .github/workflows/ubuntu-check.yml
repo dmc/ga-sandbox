@@ -8,6 +8,8 @@ on:
 
 jobs:
   check:
+    outputs:
+      result: ${{ steps.check.outcome }}
     timeout-minutes: 7200
     runs-on: ubuntu-latest
 
@@ -71,3 +73,13 @@ jobs:
             gh api repos/${{ github.repository }}/actions/artifacts/$ID -X DELETE
           fi
         done
+  post:
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - name: result
+        env:
+          NEEDS_JSON: ${{ toJson(needs) }}
+        run: |
+          echo ${NEEDS_JSON}
+
