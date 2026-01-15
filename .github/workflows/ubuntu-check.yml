@@ -57,7 +57,7 @@ jobs:
     - uses: actions/download-artifact@v4
       with:
         name: ${{ github.run_id }}-github.json
-        path: .download-json
+        path: download-json
 
     - name: check
       if: always()
